@@ -717,6 +717,38 @@ def test_panels_atrasados_cuando_el_bot_deja_de_escribir(
     assert body["positions"][0]["current_price"] == 2_404.10
 
 
+def test_la_decision_se_mide_con_el_paso_de_vela_no_con_el_poll(
+    seeded: tuple[Path, _FrozenClock, TestClient]
+) -> None:
+    """Dos cadencias distintas, dos umbrales: 15 s para el poll, una vela para la decisión.
+
+    La decisión solo se escribe al cerrar la vela de decisión (M5 = 300 s). Con el umbral del
+    dashboard, `stale_after_s: 15`, el chip del Cerebro estaba ambarado **siempre** —incluso con
+    el bot perfecto decidiendo vela a vela—, porque medía una cadencia de 300 s con un reloj de
+    15 s. Aquí la última escritura tiene 2 minutos: tarde para un poll, fresco para una vela.
+    """
+    db_path, clock, _ = seeded
+    a_los_dos_minutos = _FrozenClock(NOW + timedelta(seconds=120))
+    client = _client(db_path, a_los_dos_minutos, _config())
+
+    overview = client.get("/api/overview").json()
+    # Lo que escribe cada poll sigue juzgándose con los 15 s del dashboard: 120 s sin escribir
+    # bot_state es un bot que dejó de publicar, y eso sí hay que pintarlo.
+    assert overview["staleness"]["bot_state"]["stale"] is True
+    assert overview["staleness"]["decision"]["stale"] is False
+    assert overview["staleness"]["decision"]["age_s"] == pytest.approx(120, abs=1)
+    assert overview["staleness"]["context"]["stale"] is False
+
+    brain = client.get("/api/brain").json()
+    assert brain["staleness"]["decision"]["stale"] is False
+    assert brain["staleness"]["snapshot"]["stale"] is False
+
+    # Y el umbral nuevo no es un "nunca atrasado": pasadas dos velas sin decisión, ambar.
+    # (El caso de 10 minutos ya lo cubre la prueba anterior con la misma base sembrada.)
+    client_tarde = _client(db_path, _FrozenClock(NOW + timedelta(seconds=400)), _config())
+    assert client_tarde.get("/api/overview").json()["staleness"]["decision"]["stale"] is True
+
+
 # ---------------------------------------------------------------------------
 # Comandos: token, idempotencia, caducidad y límites
 # ---------------------------------------------------------------------------

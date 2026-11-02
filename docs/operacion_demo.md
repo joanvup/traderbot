@@ -30,7 +30,7 @@ los comandos de este documento se probaron con 3.11.9).
 # 1) (opcional) dejar el histórico en su punto si el bot estuvo varios días parado
 python scripts/sync_history.py --config config/config.example.yaml
 
-# 2) bot + ejecución DEMO. SIN --execute el bot es de solo lectura: decide y registra, no opera.
+# 2) bot + ejecución DEMO. SIN --execute NO decide: solo mantiene velas y régimen (ver abajo).
 export MT5_LOGIN=... MT5_PASSWORD=... MT5_SERVER=...   # solo si no estás ya logueado en el terminal
 python scripts/run_bot.py --config config/config.example.yaml --execute
 
@@ -45,6 +45,15 @@ Detalles que importan:
   `EJECUCIÓN DEMO HABILITADA (Fase 4)` y, antes de construir el bot, verifica cuenta DEMO y
   algo trading; si algo falla, sale con código **3** y mensaje `EJECUCIÓN RECHAZADA: ...` sin
   haber tocado el mercado.
+- **Sin `--execute` el bot no decide nada.** No es "solo lectura de mercado", es que no se
+  construye el `Bot` y el proceso queda en `service.run()` (`scripts/run_bot.py:198-204`): velas,
+  régimen, equity y `bot_state`, pero **cero filas en `decisions` y cero en `decisions.jsonl`**.
+  El síntoma en el panel es el chip ámbar del Cerebro con una decisión vieja cada vez más vieja
+  (la última que escribió un bot con `--execute`); los KPIs y los chips de feed siguen verdes
+  porque esos sí los alimenta el servicio de datos. Es el arranque que se usa para mirar el feed
+  sin riesgo, no para validar la estrategia: si quieres ver decisiones, tiene que llevar
+  `--execute`. Y el token: `run_dashboard.py` lee `.env`, así que exportar uno nuevo en cada
+  arranque (`openssl rand -hex 16`) rompe los botones del navegador hasta que lo pegues otra vez.
 - Al arrancar el bot descarga velas cerradas (`--skip-history` lo evita) y aplica la retención de
   90 días / 2000 líneas de log sobre el StateStore.
 - El dashboard escucha solo en `127.0.0.1:8787`. `--check` lista los endpoints sin abrir puerto,

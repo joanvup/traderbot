@@ -500,9 +500,9 @@ function renderBrain(brain) {
     `<span class="mono">${esc(dash(l.touches))}</span>`,
   ]);
   put("brain-levels", `<div class="brain-title">Niveles clave</div>
-    <div class="tiny muted">posición dentro del rango <span class="mono">${esc(dash(st.range_position))}</span> ·
-      día anterior <span class="mono">${esc(dash(st.prev_day_low))}</span>–<span class="mono">${esc(dash(st.prev_day_high))}</span> ·
-      distancia al nivel más cercano <span class="mono">${esc(dash(st.nearest_level_distance))}</span></div>
+    <div class="tiny muted">posición dentro del rango ${mono(st.range_position)} ·
+      día anterior ${mono(st.prev_day_low)}–${mono(st.prev_day_high)} ·
+      distancia al nivel más cercano ${mono(st.nearest_level_distance)}</div>
     ${table(["precio", "tipo", "fuerza", "toques"], levelRows, "compact")}`);
 
   const histRows = (brain.history || []).map((d) => [

@@ -366,8 +366,16 @@ class DashboardReadModel:
         delta = ((now or self._clock.now_utc()) - moment).total_seconds()
         return max(0.0, delta)
 
-    def stale_flag(self, ts: Any, *, now: datetime | None = None) -> dict[str, Any]:
-        """Triple `as_of` / `age_s` / `stale` que consume cada panel del frontend."""
+    def stale_flag(
+        self, ts: Any, *, now: datetime | None = None, after_s: int | None = None
+    ) -> dict[str, Any]:
+        """Triple `as_of` / `age_s` / `stale` que consume cada panel del frontend.
+
+        `after_s` permite medir un bloque con el umbral de su propia cadencia: el de las
+        escrituras por poll (5 s) no se puede juzgar con el mismo reloj que el de la decisión,
+        que solo se escribe al cerrar la vela. Sin ese parámetro rige el umbral del dashboard.
+        """
+        limite = self._stale_after_s if after_s is None else after_s
         age = self.age_s(ts, now=now)
         if isinstance(ts, datetime):
             as_of = ts.astimezone(UTC).isoformat().replace("+00:00", "Z")
@@ -375,4 +383,4 @@ class DashboardReadModel:
             as_of = ts
         else:
             as_of = None
-        return {"as_of_utc": as_of, "age_s": age, "stale": age is None or age > self._stale_after_s}
+        return {"as_of_utc": as_of, "age_s": age, "stale": age is None or age > limite}

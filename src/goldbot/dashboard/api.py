@@ -170,6 +170,16 @@ def build_read_router(
     """Expone estado, KPIs, cerebro, posiciones, gráficos, historial, eventos y log."""
     router = APIRouter()
 
+    # `stale_after_s` del dashboard mide escrituras por poll (5 s). La decisión y el contexto que
+    # la acompaña solo se escriben al cerrar la vela de decisión, así que con 15 s el panel estaría
+    # ambarado también con un bot perfecto: una vela M5 tarda 300 s. Se usa la cadencia ya
+    # declarada por timeframe en `data.stale_after_s` (M5 -> 360 s = una vela + margen) y se
+    # respeta el umbral del dashboard si alguien lo configuró más alto.
+    _cadencia = dict(getattr(config.data, "stale_after_s", {}) or {})
+    decision_after_s = max(
+        stale_after_s, int(_cadencia.get(str(config.data.decision_timeframe), 360))
+    )
+
     def server_time_block() -> dict[str, Any]:
         now = clock.now_utc()
         server_naive = clock.to_server(now)
@@ -330,9 +340,11 @@ def build_read_router(
             "staleness": {
                 "bot_state": rm.stale_flag((state or {}).get("updated_at_utc")),
                 "account": rm.stale_flag((state or {}).get("updated_at_utc")),
-                "context": rm.stale_flag((context or {}).get("data_cutoff_utc")),
+                "context": rm.stale_flag(
+                    (context or {}).get("data_cutoff_utc"), after_s=decision_after_s
+                ),
                 "health": rm.stale_flag((health or {}).get("checked_at_utc")),
-                "decision": rm.stale_flag((latest or {}).get("ts_utc")),
+                "decision": rm.stale_flag((latest or {}).get("ts_utc"), after_s=decision_after_s),
                 "equity_series": rm.stale_flag(last_equity_row["last_ts_utc"]),
                 "positions": rm.stale_flag(
                     max((str(p["updated_at_utc"]) for p in positions), default=None)
@@ -395,9 +407,10 @@ def build_read_router(
             "model_versions": (latest or {}).get("model_versions_json"),
             "history": [slim_decision(row) for row in history],
             "staleness": {
-                "decision": rm.stale_flag((latest or {}).get("ts_utc")),
+                "decision": rm.stale_flag((latest or {}).get("ts_utc"), after_s=decision_after_s),
                 "snapshot": rm.stale_flag(
-                    (context or {}).get("data_cutoff_utc") if isinstance(context, dict) else None
+                    (context or {}).get("data_cutoff_utc") if isinstance(context, dict) else None,
+                    after_s=decision_after_s,
                 ),
             },
         }
